@@ -1,4 +1,4 @@
-J-LINK Commander tool for CMSIS-DAP (DAPLink) Debugger
+J-LINK Commander like tool for CMSIS-DAP (DAPLink) Debugger
 
 To run this tool, you need python 2.7
 
