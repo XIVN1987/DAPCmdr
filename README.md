@@ -10,3 +10,5 @@ Note: the software uses the following statement to find the debugger
 if product_name.find("CMSIS-DAP") < 0:
     # Skip non cmsis-dap HID device
 ```
+
+Note: you may need to update ST-Link's firmware to the latest
