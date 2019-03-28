@@ -31,12 +31,19 @@ DP_CTRL_STAT = 0x4 # read-write
 DP_SELECT = 0x8 # write-only
 DP_RDBUFF = 0xC # read-only
 
+ABORT_DAPABORT = 0x00000001
+ABORT_STKCMPCLR = 0x00000002
 ABORT_STKERRCLR = 0x00000004
+ABORT_WDERRCLR = 0x00000008
+ABORT_ORUNERRCLR = 0x00000010
 
 # DP Control / Status Register bit definitions
+CTRLSTAT_ORUNDETECT = 0x00000001
 CTRLSTAT_STICKYORUN = 0x00000002
 CTRLSTAT_STICKYCMP = 0x00000010
 CTRLSTAT_STICKYERR = 0x00000020
+CTRLSTAT_READOK = 0x00000040
+CTRLSTAT_WDATAERR = 0x00000080
 
 DPIDR_MIN_MASK = 0x10000
 DPIDR_VERSION_MASK = 0xf000
@@ -226,7 +233,7 @@ class DebugPort(object):
             try:
                 result = result_cb()
                 if LOG_DAP:
-                    self.logger.info("read_dp:%06d %s(addr=0x%08x) -> 0x%08x", num, "" if now else "...", addr.value, result)
+                    self.logger.info("read_dp:%06d %s(addr=0x%08x) -> 0x%08x", num, "" if now else "...", addr, result)
                 return result
             except exceptions.ProbeError as error:
                 self._handle_error(error, num)
@@ -236,7 +243,7 @@ class DebugPort(object):
             return read_dp_cb()
         else:
             if LOG_DAP:
-                self.logger.info("read_dp:%06d (addr=0x%08x) -> ...", num, addr.value)
+                self.logger.info("read_dp:%06d (addr=0x%08x) -> ...", num, addr)
             return read_dp_cb
 
     def write_dp(self, addr, data):
@@ -245,7 +252,7 @@ class DebugPort(object):
         # Write the DP register.
         try:
             if LOG_DAP:
-                self.logger.info("write_dp:%06d (addr=0x%08x) = 0x%08x", num, addr.value, data)
+                self.logger.info("write_dp:%06d (addr=0x%08x) = 0x%08x", num, addr, data)
             self.link.write_dp(addr, data)
         except exceptions.ProbeError as error:
             self._handle_error(error, num)
@@ -298,16 +305,19 @@ class DebugPort(object):
     def _handle_error(self, error, num):
         if LOG_DAP:
             self.logger.info("error:%06d %s", num, error)
-        # Clear sticky error for Fault errors only
+        # Clear sticky error for fault errors.
         if isinstance(error, exceptions.TransferFaultError):
             self.clear_sticky_err()
+        # For timeouts caused by WAIT responses, set DAPABORT to abort the transfer.
+        elif isinstance(error, exceptions.TransferTimeoutError):
+            self.write_reg(DP_ABORT, ABORT_DAPABORT)
 
     def clear_sticky_err(self):
         mode = self.link.wire_protocol
         if mode == DebugProbe.Protocol.SWD:
-            self.write_reg(DP_ABORT, ABORT_STKERRCLR)
+            self.write_reg(DP_ABORT, ABORT_ORUNERRCLR | ABORT_WDERRCLR | ABORT_STKERRCLR | ABORT_STKCMPCLR)
         elif mode == DebugProbe.Protocol.JTAG:
-            self.write_reg(DP_CTRL_STAT, CTRLSTAT_STICKYERR)
+            self.write_reg(DP_CTRL_STAT, CTRLSTAT_STICKYERR | CTRLSTAT_STICKYCMP | CTRLSTAT_STICKYORUN)
         else:
             assert False
 

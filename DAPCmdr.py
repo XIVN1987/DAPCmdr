@@ -24,15 +24,15 @@ address and value use hexadecimal, count use decimal
 '''
     
     def emptyline(self):
-        daplinks = aggregator.DebugProbeAggregator.get_all_connected_probes()
-        if not daplinks:
-            print 'no debug probe found\n'
-            return
-
         try:
             self.daplink.close()
         except Exception as e:
             pass
+
+        daplinks = aggregator.DebugProbeAggregator.get_all_connected_probes()
+        if not daplinks:
+            print 'no debug probe found\n'
+            return
 
         for i in range(len(daplinks)):
             print '<%d>: %s' %(i, daplinks[i].product_name)

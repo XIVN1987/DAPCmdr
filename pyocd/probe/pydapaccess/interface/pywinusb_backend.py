@@ -15,6 +15,7 @@
 # limitations under the License.
 
 from .interface import Interface
+from .common import filter_device_by_usage_page
 from ..dap_access_api import DAPAccessIntf
 from ....utility.timeout import Timeout
 import logging
@@ -42,8 +43,6 @@ class PyWinUSB(Interface):
     a USB HID device using pywinusb:
         - write/read an endpoint
     """
-    vid = 0
-    pid = 0
 
     isAvailable = IS_AVAILABLE
 
@@ -56,7 +55,6 @@ class PyWinUSB(Interface):
         # comprable to a based list implmentation.
         self.rcv_data = collections.deque()
         self.device = None
-        self.packet_size = 64
 
     # handler called when a report is received
     def rx_handler(self, data):
@@ -114,6 +112,12 @@ class PyWinUSB(Interface):
         for dev in all_mbed_devices:
             try:
                 dev.open(shared=True)
+
+                # Perform device-specific filtering.
+                if filter_device_by_usage_page(dev.vendor_id, dev.product_id, dev.hid_caps.usage_page):
+                    dev.close()
+                    continue
+
                 report = dev.find_output_reports()
                 if len(report) != 1:
                     dev.close()

@@ -1,5 +1,5 @@
 # DAPCmdr
-J-LINK Commander like tool for CMSIS-DAP (DAPLink) and ST-Link v2-1 Debugger
+J-LINK Commander like tool for CMSIS-DAP (DAPLink) and ST-Link Debugger
 
 To run this tool, you need python 2.7, enum34 and a usb backend (hidapi or pywinusb for windows, pyusb for linux, hidapi for mac)
 
