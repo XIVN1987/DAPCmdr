@@ -17,7 +17,6 @@
 from .interface import Interface
 from .common import (filter_device_by_class, is_known_cmsis_dap_vid_pid)
 from ..dap_access_api import DAPAccessIntf
-from ... import common
 import logging
 import os
 import threading
@@ -171,7 +170,6 @@ class PyUSBv2(Interface):
         try:
             all_devices = usb.core.find(find_all=True, custom_match=HasCmsisDapv2Interface())
         except usb.core.NoBackendError:
-            common.show_no_libusb_warning()
             return []
 
         # iterate on all devices found
