@@ -1,7 +1,7 @@
 # DAPCmdr
 J-LINK Commander like tool for DAPLink (CMSIS-DAP)
 
-To run this tool, you need python 3.6 and a usb backend (hidapi or pywinusb for windows, pyusb for linux, hidapi for mac)
+To run this tool, you need python 3.6, pyusb for CMSIS-DAPv2 and another usb-backend for CMSIS-DAPv1 (hidapi or pywinusb for windows, hidapi for mac, pyusb for linux)
 
 ![](https://github.com/XIVN1987/DAPCmdr/blob/master/截屏.jpg)
 
