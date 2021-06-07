@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import ptkcmd
+import logging
 import functools
 import configparser
 from prompt_toolkit.completion import Completion
@@ -14,8 +15,11 @@ import svd
 import hardfault
 import callstack
 
-sys.path.append(sys.exec_prefix + r'\venv\Lib\site-packages')
-import ipdb
+#sys.path.append(sys.exec_prefix + r'\venv\Lib\site-packages')
+#import ipdb
+
+
+logging.basicConfig(filename='DAPCmdr.log')
 
 
 class DAPCmdr(ptkcmd.PtkCmd):
@@ -514,7 +518,7 @@ GCC: objdump -d $@ > $@.dis\n'''
         self.conf.write(open('setting.ini', 'w', encoding='utf-8'))
 
 
-with ipdb.launch_ipdb_on_exception():
-#if __name__ == '__main__':
+#with ipdb.launch_ipdb_on_exception():
+if __name__ == '__main__':
     cmd = DAPCmdr()
     cmd.cmdloop()
