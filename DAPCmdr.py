@@ -3,7 +3,6 @@ import os
 import re
 import sys
 import ptkcmd
-import logging
 import functools
 import configparser
 from prompt_toolkit.completion import Completion
@@ -19,7 +18,7 @@ import callstack
 #import ipdb
 
 
-logging.basicConfig(filename='DAPCmdr.log')
+os.environ['PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'libusb-1.0.24/MinGW64/dll') + os.pathsep + os.environ['PATH']
 
 
 class DAPCmdr(ptkcmd.PtkCmd):
