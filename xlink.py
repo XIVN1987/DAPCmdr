@@ -111,5 +111,7 @@ class XLink(object):
             return self.xlk.read_core_type()
         else:
             self.xlk._read_core_type()
+            if self.xlk.core_type == 0x132:
+                return 'STAR-MC1'
             from pyocd.coresight import cortex_m
             return cortex_m.CORE_TYPE_NAME[self.xlk.core_type]
