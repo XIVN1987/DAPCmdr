@@ -5,7 +5,7 @@ To run this tool, you need python 3.6+ and prompt_toolkit 3.0+.
 
 To use DAPLink, you need additional pyusb for CMSIS-DAPv2 and another usb-backend for CMSIS-DAPv1 (hidapi or pywinusb for windows, hidapi for mac, pyusb for linux).
 
-![](https://github.com/XIVN1987/DAPCmdr/blob/master/docs/screencap.gif)
+![](./docs/screencap.gif)
 `√` meaning file exists, `×` meaning not.
 
 ## Basic Command
