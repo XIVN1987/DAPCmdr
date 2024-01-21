@@ -245,7 +245,7 @@ Can only exec when Core halted\n'''
               vals['CONTROL'], 'unprivileged' if vals['CONTROL']&1 else 'privileged', 'PSP' if vals['CONTROL']&2 else 'MSP',
              ))
 
-        if vals['XPSR'] & 0xFF == 3:
+        if vals['XPSR'] & 0xFF in (3, 12):
             if self.xlk.read_core_type() not in ['Cortex-M0', 'Cortex-M0+']:
                 causes = hardfault.diagnosis(self.xlk)
                 print("\n".join(causes))
