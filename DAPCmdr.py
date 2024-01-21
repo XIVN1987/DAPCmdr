@@ -23,7 +23,7 @@ os.environ['PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'l
 
 class DAPCmdr(ptkcmd.PtkCmd):
     prompt = 'DAPCmdr > '
-    intro = '''J-Link and DAPLink Commander v0.6
+    intro = '''J-Link and DAPLink Commander v0.7
 blank line for connection, ? for help
 address and value use hexadecimal, count use decimal\n'''
     
