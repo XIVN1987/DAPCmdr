@@ -14,7 +14,7 @@ import svd
 import hardfault
 import callstack
 
-#sys.path.append(sys.exec_prefix + r'\venv\Lib\site-packages')
+#sys.path.append(sys.exec_prefix + r'\vexe\Lib\site-packages')
 #import ipdb
 
 
