@@ -379,7 +379,7 @@ Can only exec when Core halted\n'''
             if os.path.isfile(self.elfpath):
                 cs = callstack.CallStack(self.elfpath)
                 if cs.Functions:
-                    print(f'\n{cs.parseStack(stackMem)}\n')
+                    print(f'\n{cs.parseStack(stackMem, causes)}\n')
     
     @connection_required
     def do_wreg(self, reg, val):
