@@ -23,7 +23,7 @@ os.environ['PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'l
 
 class DAPCmdr(ptkcmd.PtkCmd):
     prompt = 'DAPCmdr > '
-    intro = '''J-Link and DAPLink Commander v0.7
+    intro = '''J-Link and DAPLink Commander v0.8
 blank line for connection, ? for help
 address and value use hexadecimal, count use decimal\n'''
     
@@ -49,15 +49,15 @@ address and value use hexadecimal, count use decimal\n'''
             self.conf.add_section('paths')
             self.conf.set('paths', 'dllpath', r'C:\Segger\JLink_V692\JLink_x64.dll')
             self.conf.set('paths', 'svdpath', r'["C:\Keil_v5\ARM\Packs\Keil\STM32F1xx_DFP\2.3.0\SVD\STM32F103xx.svd"]')
-            self.conf.set('paths', 'dispath', r'["D:\Project\STM32_Blinky\out\STM32_Blinky.axf"]')
+            self.conf.set('paths', 'elfpath', r'["D:\Project\STM32_Blinky\out\STM32_Blinky.axf"]')
             self.conf.write(open('setting.ini', 'w', encoding='utf-8'))
 
         self.svdpaths = eval(self.conf.get('paths', 'svdpath'))
-        self.dispaths = eval(self.conf.get('paths', 'dispath'))
+        self.elfpaths = eval(self.conf.get('paths', 'elfpath'))
 
         self.dllpath = self.conf.get('paths', 'dllpath')
         self.svdpath = self.svdpaths[0]
-        self.dispath = self.dispaths[0]
+        self.elfpath = self.elfpaths[0]
 
         if os.path.isfile(self.svdpath):
             self.dev = svd.SVD(self.svdpath).device
@@ -261,8 +261,8 @@ Can only exec when Core halted\n'''
             for i in range(len(stackMem) // 8):
                 print(f'{fault_SP+i*8*4:08X}:  {stackMem[i*8]:08X} {stackMem[i*8+1]:08X} {stackMem[i*8+2]:08X} {stackMem[i*8+3]:08X} {stackMem[i*8+4]:08X} {stackMem[i*8+5]:08X} {stackMem[i*8+6]:08X} {stackMem[i*8+7]:08X}')
             
-            if os.path.isfile(self.dispath):
-                cs = callstack.CallStack(self.dispath)
+            if os.path.isfile(self.elfpath):
+                cs = callstack.CallStack(self.elfpath)
                 if cs.Functions:
                     print(f'\n{cs.parseStack(stackMem)}\n')
     
@@ -305,12 +305,12 @@ Can only exec when Core halted\n'''
         '''display path, Syntax: path
 set JLink_x64.dll, Syntax: path dll <dllpath>
 set svd file path, Syntax: path svd <svdpath>
-set dis file path, Syntax: path dis <dispath>\n'''
+set elf file path, Syntax: path elf <elfpath>\n'''
         if subcmd == None:
-            maxlen = max(len(self.dllpath), len(self.svdpath), len(self.dispath))
+            maxlen = max(len(self.dllpath), len(self.svdpath), len(self.elfpath))
             print(f'{"√" if os.path.isfile(self.dllpath) else "×"}  {self.dllpath:{maxlen}}')
             print(f'{"√" if os.path.isfile(self.svdpath) else "×"}  {self.svdpath:{maxlen}}')
-            print(f'{"√" if os.path.isfile(self.dispath) else "×"}  {self.dispath:{maxlen}}\n')
+            print(f'{"√" if os.path.isfile(self.elfpath) else "×"}  {self.elfpath:{maxlen}}\n')
 
         else:
             if path:
@@ -329,8 +329,8 @@ set dis file path, Syntax: path dis <dispath>\n'''
                         self.dev = svd.SVD(self.svdpath).device
                         self.mcucore = self.dev.cpu.name
 
-                    elif subcmd == 'dis':
-                        self.dispath = path
+                    elif subcmd == 'elf':
+                        self.elfpath = path
 
                     else:
                         print(f'{subcmd} Unknown\n')
@@ -347,7 +347,7 @@ set dis file path, Syntax: path dis <dispath>\n'''
         if len(pre_args) > 0:
             if pre_args[0] == 'dll':   extra_paths =[self.dllpath]
             elif pre_args[0] == 'svd': extra_paths = self.svdpaths
-            elif pre_args[0] == 'dis': extra_paths = self.dispaths
+            elif pre_args[0] == 'elf': extra_paths = self.elfpaths
             else: return
             
             yield from ptkcmd.complete_path(' '.join([*pre_args[1:], curr_arg]), extra_paths, self.env)
@@ -456,22 +456,17 @@ register field write: sv <peripheral>.<register>.<field> <dec>\n'''
     
     @connection_required
     def do_dis(self):
-        '''display CallStack information coming from disassembling file.
-
-disassembling file can be built by command below:
-MDK: fromelf --text -a -c -o "$L@L.dis" "#L"
-IAR: ielfdumparm --code --source $TARGET_PATH$ -o $TARGET_PATH$.dis
-GCC: objdump -d $@ > $@.dis\n'''
-        if os.path.isfile(self.dispath):
-            cs = callstack.CallStack(self.dispath)
+        '''display CallStack information coming from elf file.\n'''
+        if os.path.isfile(self.elfpath):
+            cs = callstack.CallStack(self.elfpath)
             if cs.Functions:
                 print(f'{cs}\n')
 
             else:
-                print("disassembling file parse Fail\n")
+                print("elf file parse Fail\n")
 
         else:
-            print("disassembling file Not Exists\n")
+            print("elf file Not Exists\n")
 
     def do_env(self):
         '''display enviriment variables\n'''
@@ -503,16 +498,8 @@ GCC: objdump -d $@ > $@.dis\n'''
 
     def saveSetting(self):
         self.conf.set('paths', 'dllpath', self.dllpath)
-
-        if self.svdpath in self.svdpaths:
-            self.svdpaths.remove(self.svdpath)
-        self.svdpaths.insert(0, self.svdpath)
-        self.conf.set('paths', 'svdpath', repr(self.svdpaths[:10]))
-
-        if self.dispath in self.dispaths:
-            self.dispaths.remove(self.dispath)
-        self.dispaths.insert(0, self.dispath)
-        self.conf.set('paths', 'dispath', repr(self.dispaths[:10]))
+        self.conf.set('paths', 'svdpath', repr(list(dict.fromkeys([self.svdpath] + self.svdpaths))))    # 保留顺序去重
+        self.conf.set('paths', 'elfpath', repr(list(dict.fromkeys([self.elfpath] + self.elfpaths))))
 
         self.conf.write(open('setting.ini', 'w', encoding='utf-8'))
 

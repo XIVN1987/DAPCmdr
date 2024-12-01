@@ -1,7 +1,12 @@
 #!python3
 import os
 import re
+import subprocess
 import collections
+
+
+# for arm-none-eabi-objdump.exe
+os.environ['PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'docs') + os.pathsep + os.environ['PATH']
 
 
 Function = collections.namedtuple('Function','start end callees callers')   # callees: 此函数调用的函数
@@ -12,17 +17,19 @@ Function = collections.namedtuple('Function','start end callees callers')   # ca
 
 class CallStack():
     def __init__(self, path):
-        text = open(path, 'r', encoding='utf-8', errors='ignore').read()
+        try:
+            result = subprocess.run(f'arm-none-eabi-objdump.exe -d {path}', capture_output=True, encoding='utf-8', errors='ignore')
+            if result.returncode != 0:
+                return
+
+        except Exception as e:
+            return
 
         self.Functions = collections.OrderedDict()
 
-        self.parseDis_MDK(text)
+        self.parseDis_GCC(result.stdout)
         if not self.Functions:
-            self.parseDis_GCC(text)
-            if not self.Functions:
-                self.parseDis_IAR(text)
-                if not self.Functions:
-                    return              # disassembler parse fail
+            return              # disassembler parse fail
 
         for name in self.Functions:
             for name2, func in self.Functions.items():
@@ -138,5 +145,5 @@ class CallStack():
 
 
 if __name__ == '__main__':
-    cs = CallStack('docs/STM32F1.dis')
+    cs = CallStack('docs/STM32F103_demo.axf')
     print(cs)

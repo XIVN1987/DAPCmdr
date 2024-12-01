@@ -73,16 +73,11 @@ Call Stack:
 0x0800015C  SerialInit
 0x080001C9  main
 ```
-to print CallStack, you need to specify disassembling file using `path dis` command.
+to print CallStack, you need to specify elf file using `path elf` command.
 
 ### dis
 ```
-display CallStack information coming from disassembling file.
-
-disassembling file can be built by command below:
-MDK: fromelf --text -a -c -o "$L@L.dis" "#L"
-IAR: ielfdumparm --code --source $TARGET_PATH$ -o $TARGET_PATH$.dis
-GCC: objdump -d $@ > $@.dis
+display CallStack information coming from elf file.
 ```
 
 ## SVD-based peripheral register access
@@ -100,7 +95,7 @@ when typing peripheral/register/field name, DAPCmdr will do auto-completion.
 display path, Syntax: path
 set JLink_x64.dll, Syntax: path dll <dllpath>
 set svd file path, Syntax: path svd <svdpath>
-set dis file path, Syntax: path dis <dispath>
+set elf file path, Syntax: path elf <elfpath>
 ```
 when typing path, DAPCmdr will do auto-completion.
 
