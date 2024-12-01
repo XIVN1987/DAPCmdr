@@ -6,7 +6,7 @@ To run this tool, you need python 3.6+ and prompt_toolkit 3.0+.
 To use DAPLink, you need additional pyusb for CMSIS-DAPv2 and another usb-backend for CMSIS-DAPv1 (hidapi or pywinusb for windows, hidapi for mac, pyusb for linux).
 
 ``` shell
-pip install prompt_toolkit pyusb hidapi six
+pip install prompt_toolkit pyusb hidapi six pyelftools
 ```
 
 ![](./docs/screencap.gif)
@@ -23,6 +23,16 @@ Write  8-bit items. Syntax: wr8 <addr> <value>
 Write 16-bit items. Syntax: wr16 <addr> <value>
 Write 32-bit items. Syntax: wr32 <addr> <value>
 ```
+
+### variable read/write
+```
+Read variable.  Syntax: rdv <variable> [i/u/f/h]
+
+Write variable. Syntax: wrv <variable> <value>
+```
+variable is parsed from elf file, so to use this function, you need to specify elf file using `path elf` command.
+
+when typing variable name, DAPCmdr will do auto-completion.
 
 ### memory read/write to/from file
 ```

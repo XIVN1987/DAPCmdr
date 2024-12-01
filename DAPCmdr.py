@@ -2,8 +2,10 @@
 import os
 import re
 import sys
+import struct
 import ptkcmd
 import functools
+import collections
 import configparser
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.shortcuts import yes_no_dialog
@@ -21,6 +23,9 @@ import callstack
 os.environ['PATH'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'libusb-1.0.24/MinGW64/dll') + os.pathsep + os.environ['PATH']
 
 
+Variable = collections.namedtuple('Variable', 'name addr size')     # variable from *.elf file
+
+
 class DAPCmdr(ptkcmd.PtkCmd):
     prompt = 'DAPCmdr > '
     intro = '''J-Link and DAPLink Commander v0.8
@@ -31,6 +36,10 @@ address and value use hexadecimal, count use decimal\n'''
         super(DAPCmdr, self).__init__(self)
 
         self.initSetting()
+
+        self.elfinfo = ()
+
+        self.Vars = {}
 
         self.env = {
             '%pwd%':  os.getcwd(),
@@ -189,6 +198,112 @@ address and value use hexadecimal, count use decimal\n'''
         self.xlk.write_U32(addr, val)
 
         print()
+
+    @connection_required
+    def do_rdv(self, name, fmt='i'):
+        '''Read variable. Syntax: rdv <variable> [i/u/f/h]\n'''
+        if name in self.Vars:
+            var = self.Vars[name]
+        else:
+            print('unknown variable')
+            return
+
+        if var.size == 1:
+            val = self.xlk.read_mem_U8(var.addr, 1)[0]
+            if fmt == 'i':
+                val = struct.unpack('b', struct.pack('B', val))[0]
+
+        elif var.size == 2:
+            val = self.xlk.read_mem_U16(var.addr, 1)[0]
+            if fmt == 'i':
+                val = struct.unpack('h', struct.pack('H', val))[0]
+
+        elif var.size == 4:
+            val = self.xlk.read_mem_U32(var.addr, 1)[0]
+            if fmt == 'i':
+                val = struct.unpack('i', struct.pack('I', val))[0]
+            elif fmt == 'f':
+                val = struct.unpack('f', struct.pack('I', val))[0]
+
+        elif var.size == 8:
+            val = self.xlk.read_mem_U32(var.addr, 2)
+            val = (val[1] << 32) | val[0]
+            if fmt == 'i':
+                val = struct.unpack('i', struct.pack('I', val))[0]
+            elif fmt == 'f':
+                val = struct.unpack('d', struct.pack('I', val))[0]
+
+        if fmt == 'h':
+            print(f'0x{val:0{var.size}X}')
+        else:
+            print(val)
+
+    @connection_required
+    def do_wrv(self, name, val):
+        '''Write variable. Syntax: wrv <variable> <value>\n'''
+        if name in self.Vars:
+            var = self.Vars[name]
+        else:
+            print('unknown variable')
+            return
+
+        try:
+            val = int(val)
+        except:
+            try:
+                val = int(val, 16)
+            except:
+                try:
+                    val = float(val)
+                except:
+                    print('invalid value')
+                    return
+
+        if var.size == 1:
+            self.xlk.write_U8(var.addr, val)
+
+        elif var.size == 2:
+            self.xlk.write_U16(var.addr, val)
+
+        elif var.size == 4:
+            if isinstance(val, float):
+                val = struct.unpack('I', struct.pack('f', val))[0]
+            
+            self.xlk.write_U32(var.addr, val)
+
+        elif var.size == 8:
+            if isinstance(val, float):
+                val = struct.unpack('I', struct.pack('d', val))[0]
+
+            self.xlk.write_U32(var.addr, val & 0xFFFFFFFF)
+            self.xlk.write_U32(var.addr, val >> 32)
+        
+        print()
+
+    def complete_rdv(self, pre_args, curr_arg, document, complete_event):
+        if len(pre_args) == 0 and curr_arg:
+            if os.path.exists(self.elfpath):
+                if self.elfinfo != (self.elfpath, os.path.getmtime(self.elfpath)):
+                    self.elfinfo = (self.elfpath, os.path.getmtime(self.elfpath))
+                    self.Vars = {}
+                    try:
+                        from elftools.elf.elffile import ELFFile
+                        elffile = ELFFile(open(self.elfpath, 'rb'))
+
+                        for sym in elffile.get_section_by_name('.symtab').iter_symbols():
+                            if sym.entry['st_info']['type'] == 'STT_OBJECT' and sym.entry['st_size'] in (1, 2, 4, 8):
+                                self.Vars[sym.name] = Variable(sym.name, sym.entry['st_value'], sym.entry['st_size'])
+                        
+                    except Exception as e:
+                        print(f'parse elf file fail: {e}')
+
+            else:
+                print('to access variable, must ensure elf file exists')
+
+            yield from [Completion(name, -len(curr_arg)) for name in ptkcmd.fuzzy_match(curr_arg, self.Vars.keys(), sort=False)]
+
+    def complete_wrv(self, pre_args, curr_arg, document, complete_event):
+        yield from self.complete_rdv(pre_args, curr_arg, document, complete_event)
 
     @connection_required
     def do_loadbin(self, file, addr):
