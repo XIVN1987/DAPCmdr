@@ -295,10 +295,10 @@ address and value use hexadecimal, count use decimal\n'''
                                 self.Vars[sym.name] = Variable(sym.name, sym.entry['st_value'], sym.entry['st_size'])
                         
                     except Exception as e:
-                        print(f'parse elf file fail: {e}')
+                        print(f'\nparse elf file fail: {e}')
 
             else:
-                print('to access variable, must ensure elf file exists')
+                print('\nto access variable, must ensure elf file exists')
 
             yield from [Completion(name, -len(curr_arg)) for name in ptkcmd.fuzzy_match(curr_arg, self.Vars.keys(), sort=False)]
 
