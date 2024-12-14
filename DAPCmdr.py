@@ -8,7 +8,7 @@ import functools
 import collections
 import configparser
 from prompt_toolkit.completion import Completion
-from prompt_toolkit.shortcuts import yes_no_dialog
+from prompt_toolkit.shortcuts import radiolist_dialog
 
 import jlink
 import xlink
@@ -92,20 +92,21 @@ address and value use hexadecimal, count use decimal\n'''
                 except Exception as e:
                     daplinks = []
 
-                if daplinks and os.path.isfile(self.dllpath):
-                    use_dap = yes_no_dialog(title='J-Link or DAPLink', text=f'Do you want to use {daplinks[0].product_name}?').run()
+                if daplinks and os.path.isfile(self.dllpath) or len(daplinks) > 1:
+                    values = [(0, 'J-Link')] + [(i+1, f'{lnk.product_name} ({lnk.unique_id})') for i, lnk in enumerate(daplinks)]
+                    index = radiolist_dialog(title="probe select", text="Which probe would you like ?", values=values).run()
 
                 elif os.path.isfile(self.dllpath):
-                    use_dap = False
+                    index = 0
 
                 elif daplinks:
-                    use_dap = True
+                    index = 1
 
                 else:
                     raise Exception('No link found')
 
-                if use_dap:
-                    daplink = daplinks[0]
+                if index:
+                    daplink = daplinks[index-1]
                     daplink.open()
 
                     _dp = dap.DebugPort(daplink, None)
