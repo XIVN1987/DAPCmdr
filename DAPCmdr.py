@@ -28,7 +28,7 @@ Variable = collections.namedtuple('Variable', 'name addr size')     # variable f
 
 class DAPCmdr(ptkcmd.PtkCmd):
     prompt = 'DAPCmdr > '
-    intro = '''J-Link and DAPLink Commander v0.8
+    intro = '''J-Link and DAPLink Commander v0.9
 blank line for connection, ? for help
 address and value use hexadecimal, count use decimal\n'''
     
@@ -54,6 +54,15 @@ address and value use hexadecimal, count use decimal\n'''
         self.conf = configparser.ConfigParser()
         self.conf.read('setting.ini', encoding='utf-8')
 
+        if not self.conf.has_section('link'):
+            self.conf.add_section('link')
+            self.conf.set('link', 'mode', 'arm')
+            self.conf.set('link', 'speed', '4000')
+            self.conf.write(open('setting.ini', 'w', encoding='utf-8'))
+
+        self.mode = self.conf.get('link', 'mode')
+        self.speed = int(self.conf.get('link', 'speed'))
+
         if not self.conf.has_section('paths'):
             self.conf.add_section('paths')
             self.conf.set('paths', 'dllpath', r'C:\Segger\JLink_V692\JLink_x64.dll')
@@ -68,13 +77,20 @@ address and value use hexadecimal, count use decimal\n'''
         self.svdpath = self.svdpaths[0]
         self.elfpath = self.elfpaths[0]
 
-        if os.path.isfile(self.svdpath):
-            self.dev = svd.SVD(self.svdpath).device
-
-            self.mcucore = self.dev.cpu.name
-
+    def link_param(self):
+        if self.mode.startswith('arm'):
+            core = 'Cortex-M0'
         else:
-            self.mcucore = 'Cortex-M0'
+            core = 'RISC-V'
+
+        iface = {
+            'arm'  : 'SWD',
+            'armj' : 'JTAG',
+            'rv'   : 'cJTAG',
+            'rvj'  : 'JTAG'
+        }[self.mode]
+
+        return core, iface, self.speed
 
     def preloop(self):
         self.onecmd('path')
@@ -82,7 +98,10 @@ address and value use hexadecimal, count use decimal\n'''
         self.xlk = None
         self.onecmd('')
 
-    def emptyline(self):     
+    def emptyline(self):
+        core, iface, speed = self.link_param()
+        print(f'connect settings: {core} {iface} {speed}KHz\n')
+
         try:
             if self.xlk == None:
                 try:
@@ -119,16 +138,36 @@ address and value use hexadecimal, count use decimal\n'''
                     self.xlk = xlink.XLink(cortex_m.CortexM(None, _ap))
 
                 else:
-                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mcucore))
+                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, *self.link_param()))
 
             else:
                 self.xlk.close()
-                self.xlk.open(self.mcucore)
+                self.xlk.open(*self.link_param())
             
             print(f'CPU core is {self.xlk.read_core_type()}\n')
         except Exception as e:
             print('connection fail\n')
             self.xlk = None
+
+    def do_mode(self, mode):
+        '''Set link mode. Syntax: mode arm/armj/rv/rvj\n'''
+        if mode in ('arm', 'armj', 'rv', 'rvj'):
+            self.mode = mode
+
+            self.saveSetting()
+
+        else:
+            print('only can be arm, armj, rv or rvj\n')
+
+    def do_speed(self, speed):
+        '''Set link speed in KHz. Syntax: speed <speed>\n'''
+        try:
+            self.speed = int(speed)
+
+            self.saveSetting()
+
+        except Exception as e:
+            print('invalid speed value\n')
 
     def connection_required(func):
         @functools.wraps(func)
@@ -442,9 +481,6 @@ set elf file path, Syntax: path elf <elfpath>\n'''
                     elif subcmd == 'svd':
                         self.svdpath = path
 
-                        self.dev = svd.SVD(self.svdpath).device
-                        self.mcucore = self.dev.cpu.name
-
                     elif subcmd == 'elf':
                         self.elfpath = path
 
@@ -613,6 +649,8 @@ register field write: sv <peripheral>.<register>.<field> <dec>\n'''
             return {}
 
     def saveSetting(self):
+        self.conf.set('link',  'mode', self.mode)
+        self.conf.set('link',  'speed', f'{self.speed}')
         self.conf.set('paths', 'dllpath', self.dllpath)
         self.conf.set('paths', 'svdpath', repr(list(dict.fromkeys([self.svdpath] + self.svdpaths))))    # 保留顺序去重
         self.conf.set('paths', 'elfpath', repr(list(dict.fromkeys([self.elfpath] + self.elfpaths))))

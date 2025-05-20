@@ -10,9 +10,9 @@ class XLink(object):
     def __init__(self, xlk):
         self.xlk = xlk
 
-    def open(self, mcucore):
+    def open(self, core, iface, speed):
         if isinstance(self.xlk, jlink.JLink):
-            self.xlk.open(mcucore)
+            self.xlk.open(core, iface, speed)
         else:
             self.xlk.ap.dp.link.open()
 
