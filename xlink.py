@@ -10,9 +10,9 @@ class XLink(object):
     def __init__(self, xlk):
         self.xlk = xlk
 
-    def open(self, core, iface, speed):
+    def open(self, mode, core, speed):
         if isinstance(self.xlk, jlink.JLink):
-            self.xlk.open(core, iface, speed)
+            self.xlk.open(mode, core, speed)
         else:
             self.xlk.ap.dp.link.open()
 
@@ -69,6 +69,12 @@ class XLink(object):
             return self.xlk.read_regs(rlist)
         else:
             return dict(zip(rlist, self.xlk.read_core_registers_raw(rlist)))
+
+    def read_reg(self, reg):
+        if isinstance(self.xlk, jlink.JLink):
+            return self.xlk.read_reg(reg)
+        else:
+            return self.xlk.read_core_register_raw(reg)
 
     def write_reg(self, reg, val):
         if isinstance(self.xlk, jlink.JLink):

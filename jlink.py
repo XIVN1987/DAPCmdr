@@ -4,13 +4,13 @@ import operator
 
 
 class JLink(object):
-    def __init__(self, dllpath, core='Cortex-M0', iface='SWD', speed=4000):
+    def __init__(self, dllpath, mode='arm', core='Cortex-M0', speed=4000):
         self.jlk = ctypes.cdll.LoadLibrary(dllpath)
 
-        self.open(core, iface, speed)
+        self.open(mode, core, speed)
 
-    def open(self, core='Cortex-M0', iface='SWD', speed=4000):
-        self.core = core.lower()
+    def open(self, mode='arm', core='Cortex-M0', speed=4000):
+        self.mode = mode.lower()
 
         self.jlk.JLINKARM_Open()
         if not self.jlk.JLINKARM_IsOpen():
@@ -19,18 +19,23 @@ class JLink(object):
         err_buf = (ctypes.c_char * 64)()
         self.jlk.JLINKARM_ExecCommand(f'Device = {core}'.encode('latin-1'), err_buf, 64)
         
-        if   iface.lower() == 'swd':   iface = TIF.SWD
-        elif iface.lower() == 'jtag':  iface = TIF.JTAG
-        elif iface.lower() == 'cjtag': iface = TIF.CJTAG
+        if self.mode == 'arm':
+            tif = TIF.SWD
+        elif self.mode == 'rv':
+            tif = TIF.CJTAG
+        elif self.mode in ('armj', 'rvj'):
+            tif = TIF.JTAG
+        else:
+            raise Exception('invalid mode value')
 
-        self.jlk.JLINKARM_TIF_Select(iface)
+        self.jlk.JLINKARM_TIF_Select(tif)
         self.jlk.JLINKARM_SetSpeed(speed)
 
         self.get_registers()
 
     def get_registers(self):
-        buffer = (ctypes.c_uint32 * 128)()
-        n_regs = self.jlk.JLINKARM_GetRegisterList(buffer, 128)
+        buffer = (ctypes.c_uint32 * 0x4000)()
+        n_regs = self.jlk.JLINKARM_GetRegisterList(buffer, 0x4000)
 
         self.jlk.JLINKARM_GetRegisterName.restype = ctypes.c_char_p
 
@@ -52,9 +57,43 @@ class JLink(object):
             else:
                 raise Exception(f'cannot find {name1}, {name2} or {name3}')
 
-        add_alias(self.core_regs, 'R13', 'SP', 'R13 (SP)')
-        add_alias(self.core_regs, 'R14', 'LR', 'R14 (LR)')
-        add_alias(self.core_regs, 'R15', 'PC', 'R15 (PC)')
+        if self.mode.startswith('arm'):
+            add_alias(self.core_regs, 'R13', 'SP', 'R13 (SP)')
+            add_alias(self.core_regs, 'R14', 'LR', 'R14 (LR)')
+            add_alias(self.core_regs, 'R15', 'PC', 'R15 (PC)')
+
+        elif self.mode.startswith('rv'):
+            add_alias(self.core_regs, 'X1',  'RA',  '')
+            add_alias(self.core_regs, 'X2',  'SP',  '')
+            add_alias(self.core_regs, 'X3',  'GP',  '')
+            add_alias(self.core_regs, 'X4',  'TP',  '')
+            add_alias(self.core_regs, 'X5',  'T0',  '')
+            add_alias(self.core_regs, 'X6',  'T1',  '')
+            add_alias(self.core_regs, 'X7',  'T2',  '')
+            add_alias(self.core_regs, 'X8',  'S0',  'FP')
+            add_alias(self.core_regs, 'X9',  'S1',  '')
+            add_alias(self.core_regs, 'X10', 'A0',  '')
+            add_alias(self.core_regs, 'X11', 'A1',  '')
+            add_alias(self.core_regs, 'X12', 'A2',  '')
+            add_alias(self.core_regs, 'X13', 'A3',  '')
+            add_alias(self.core_regs, 'X14', 'A4',  '')
+            add_alias(self.core_regs, 'X15', 'A5',  '')
+            add_alias(self.core_regs, 'X16', 'A6',  '')
+            add_alias(self.core_regs, 'X17', 'A7',  '')
+            add_alias(self.core_regs, 'X18', 'S2',  '')
+            add_alias(self.core_regs, 'X19', 'S3',  '')
+            add_alias(self.core_regs, 'X20', 'S4',  '')
+            add_alias(self.core_regs, 'X21', 'S5',  '')
+            add_alias(self.core_regs, 'X22', 'S6',  '')
+            add_alias(self.core_regs, 'X23', 'S7',  '')
+            add_alias(self.core_regs, 'X24', 'S8',  '')
+            add_alias(self.core_regs, 'X25', 'S9',  '')
+            add_alias(self.core_regs, 'X26', 'S10', '')
+            add_alias(self.core_regs, 'X27', 'S11', '')
+            add_alias(self.core_regs, 'X28', 'T3',  '')
+            add_alias(self.core_regs, 'X29', 'T4',  '')
+            add_alias(self.core_regs, 'X30', 'T5',  '')
+            add_alias(self.core_regs, 'X31', 'T6',  '')
 
     def write_U8(self, addr, val):
         self.jlk.JLINKARM_WriteU8(addr, val)
@@ -91,6 +130,9 @@ class JLink(object):
     def read_U32(self, addr):
         return self.read_mem_U32(addr, 1)[0]
 
+    def read_reg(self, reg):
+        return self.jlk.JLINKARM_ReadReg(reg)
+    
     def read_regs(self, rlist):
         regIndex = [self.core_regs[r] for r in rlist]
         
@@ -114,9 +156,7 @@ class JLink(object):
         self.jlk.JLINKARM_Go()
 
     def halted(self):
-        ret = self.jlk.JLINKARM_IsHalted()
-
-        return (ret == 1)
+        return self.jlk.JLINKARM_IsHalted()
 
     def close(self):
         self.jlk.JLINKARM_Close()
@@ -133,10 +173,7 @@ class JLink(object):
     }
 
     def read_core_type(self):
-        if self.core == 'risc-v':
-            return 'RISC-V'
-
-        else:
+        if self.mode.startswith('arm'):
             CPUID = 0xE000ED00
             CPUID_PARTNO_Pos = 4
             CPUID_PARTNO_Msk = 0x0000FFF0
@@ -146,6 +183,47 @@ class JLink(object):
             core_type = (cpuid & CPUID_PARTNO_Msk) >> CPUID_PARTNO_Pos
             
             return self.CORE_TYPE_NAME[core_type]
+
+        elif self.mode.startswith('rv'):
+            self.halt()
+            isa = self.read_reg(self.core_regs['MISA'])
+            self.go()
+
+            if ((isa >> 30) & 3) == 1:
+                name = 'RV32'
+            elif ((isa >> 62) & 3) == 2:
+                name = 'RV64'
+            else:
+                return 'RISC-V'
+
+            indx = lambda chr: ord(chr) - ord('A')
+
+            if isa & (1 << indx('I')):
+                name += 'I'
+            else:
+                name += 'E'
+
+            if isa & (1 << indx('M')):
+                name += 'M'
+
+            if isa & (1 << indx('A')):
+                name += 'A'
+
+            if isa & (1 << indx('F')):
+                name += 'F'
+
+            if isa & (1 << indx('D')):
+                name += 'D'
+
+            if isa & (1 << indx('C')):
+                name += 'C'
+
+            if isa & (1 << indx('B')):
+                name += 'B'
+
+            name = name.replace('IMAFD', 'G')
+
+            return name
 
 
 class TIF:

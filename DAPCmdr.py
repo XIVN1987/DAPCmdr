@@ -77,20 +77,19 @@ address and value use hexadecimal, count use decimal\n'''
         self.svdpath = self.svdpaths[0]
         self.elfpath = self.elfpaths[0]
 
-    def link_param(self):
+        if os.path.isfile(self.svdpath):
+            self.svdev = svd.SVD(self.svdpath).device
+
+    def device_core(self):
         if self.mode.startswith('arm'):
             core = 'Cortex-M0'
         else:
             core = 'RISC-V'
 
-        iface = {
-            'arm'  : 'SWD',
-            'armj' : 'JTAG',
-            'rv'   : 'cJTAG',
-            'rvj'  : 'JTAG'
-        }[self.mode]
+        if self.mode.startswith('arm') and hasattr(self, 'svdev'):
+            core = self.svdev.cpu.name
 
-        return core, iface, self.speed
+        return core
 
     def preloop(self):
         self.onecmd('path')
@@ -99,8 +98,7 @@ address and value use hexadecimal, count use decimal\n'''
         self.onecmd('')
 
     def emptyline(self):
-        core, iface, speed = self.link_param()
-        print(f'connect settings: {core} {iface} {speed}KHz\n')
+        print(f'mode = {self.mode}, speed = {self.speed}KHz\n')
 
         try:
             if self.xlk == None:
@@ -138,11 +136,11 @@ address and value use hexadecimal, count use decimal\n'''
                     self.xlk = xlink.XLink(cortex_m.CortexM(None, _ap))
 
                 else:
-                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, *self.link_param()))
+                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed))
 
             else:
                 self.xlk.close()
-                self.xlk.open(*self.link_param())
+                self.xlk.open(self.mode, self.device_core(), self.speed)
             
             print(f'CPU core is {self.xlk.read_core_type()}\n')
         except Exception as e:
@@ -379,48 +377,89 @@ Can only exec when Core halted\n'''
             print('should halt first!\n')
             return
 
-        regs = ['R0', 'R1', 'R2',  'R3',  'R4',  'R5', 'R6', 'R7',
-                'R8', 'R9', 'R10', 'R11', 'R12', 'SP', 'LR', 'PC',
-                'MSP', 'PSP', 'XPSR', 'CONTROL'
-        ]
-        vals = self.xlk.read_regs(regs)
-        vals['CONTROL'] >>= 24  # J-Link Control Panel 中显示的也是移位前的
+        if self.mode.startswith('arm'):
+            regs = ['R0', 'R1', 'R2',  'R3',  'R4',  'R5', 'R6', 'R7',
+                    'R8', 'R9', 'R10', 'R11', 'R12', 'SP', 'LR', 'PC',
+                    'MSP', 'PSP', 'XPSR', 'CONTROL'
+            ]
+            vals = self.xlk.read_regs(regs)
+            vals['CONTROL'] >>= 24  # J-Link Control Panel 中显示的也是移位前的
 
-        print('R0 : %08X    R1 : %08X    R2 : %08X    R3 : %08X\n'
-              'R4 : %08X    R5 : %08X    R6 : %08X    R7 : %08X\n'
-              'R8 : %08X    R9 : %08X    R10: %08X    R11: %08X\n'
-              'R12: %08X    SP : %08X    LR : %08X    PC : %08X\n'
-              'MSP: %08X    PSP: %08X    XPSR: %08X\n'
-              'CONTROL: %02X (when Thread mode: %s, use %s)\n'
-            %(vals['R0'],   vals['R1'],  vals['R2'],  vals['R3'],
-              vals['R4'],   vals['R5'],  vals['R6'],  vals['R7'],
-              vals['R8'],   vals['R9'],  vals['R10'], vals['R11'],
-              vals['R12'],  vals['SP'],  vals['LR'],  vals['PC'],
-              vals['MSP'],  vals['PSP'], vals['XPSR'],
-              vals['CONTROL'], 'unprivileged' if vals['CONTROL']&1 else 'privileged', 'PSP' if vals['CONTROL']&2 else 'MSP',
-             ))
+            print('R0 : %08X    R1 : %08X    R2 : %08X    R3 : %08X\n'
+                  'R4 : %08X    R5 : %08X    R6 : %08X    R7 : %08X\n'
+                  'R8 : %08X    R9 : %08X    R10: %08X    R11: %08X\n'
+                  'R12: %08X    SP : %08X    LR : %08X    PC : %08X\n'
+                  'MSP: %08X    PSP: %08X    XPSR: %08X\n'
+                  'CONTROL: %02X (when Thread mode: %s, use %s)\n'
+                %(vals['R0'],   vals['R1'],  vals['R2'],  vals['R3'],
+                  vals['R4'],   vals['R5'],  vals['R6'],  vals['R7'],
+                  vals['R8'],   vals['R9'],  vals['R10'], vals['R11'],
+                  vals['R12'],  vals['SP'],  vals['LR'],  vals['PC'],
+                  vals['MSP'],  vals['PSP'], vals['XPSR'],
+                  vals['CONTROL'], 'unprivileged' if vals['CONTROL']&1 else 'privileged', 'PSP' if vals['CONTROL']&2 else 'MSP',
+                 ))
 
-        if vals['XPSR'] & 0xFF in (3, 12):
-            if self.xlk.read_core_type() not in ['Cortex-M0', 'Cortex-M0+']:
-                causes = hardfault.diagnosis(self.xlk)
-                print("\n".join(causes))
+            if vals['XPSR'] & 0xFF in (3, 12):
+                if self.xlk.read_core_type() not in ['Cortex-M0', 'Cortex-M0+']:
+                    causes = hardfault.diagnosis(self.xlk)
+                    print("\n".join(causes))
 
-            if (vals['LR'] >> 2) & 1 == 0:
-                fault_SP = vals['MSP']  # 发生HardFault时使用的栈，也就是HardFault异常栈帧所在的栈
-            else:
-                fault_SP = vals['PSP']
+                if (vals['LR'] >> 2) & 1 == 0:
+                    fault_SP = vals['MSP']  # 发生HardFault时使用的栈，也就是HardFault异常栈帧所在的栈
+                else:
+                    fault_SP = vals['PSP']
 
-            stackMem = self.xlk.read_mem_U32(fault_SP, 64)  # 读取个数须是8的整数倍
+                stackMem = self.xlk.read_mem_U32(fault_SP, 64)  # 读取个数须是8的整数倍
 
-            print(f'\nStack Content @ 0x{fault_SP:08X}:')
-            for i in range(len(stackMem) // 8):
-                print(f'{fault_SP+i*8*4:08X}:  {stackMem[i*8]:08X} {stackMem[i*8+1]:08X} {stackMem[i*8+2]:08X} {stackMem[i*8+3]:08X} {stackMem[i*8+4]:08X} {stackMem[i*8+5]:08X} {stackMem[i*8+6]:08X} {stackMem[i*8+7]:08X}')
-            
-            if os.path.isfile(self.elfpath):
-                cs = callstack.CallStack(self.elfpath)
-                if cs.Functions:
-                    print(f'\n{cs.parseStack(stackMem, causes)}\n')
+                print(f'\nStack Content @ 0x{fault_SP:08X}:')
+                for i in range(len(stackMem) // 8):
+                    print(f'{fault_SP+i*8*4:08X}:  {stackMem[i*8]:08X} {stackMem[i*8+1]:08X} {stackMem[i*8+2]:08X} {stackMem[i*8+3]:08X} {stackMem[i*8+4]:08X} {stackMem[i*8+5]:08X} {stackMem[i*8+6]:08X} {stackMem[i*8+7]:08X}')
+                
+                if os.path.isfile(self.elfpath):
+                    cs = callstack.CallStack(self.elfpath)
+                    if cs.Functions:
+                        print(f'\n{cs.parseStack(stackMem, causes)}\n')
+
+        elif self.mode.startswith('rv'):
+            regs = ['pc', 'ra', 'sp', 'gp', 'tp', 'fp', 't0', 't1',
+                    't2', 't3', 't4', 't5', 't6', 'a0', 'a1', 'a2',
+                    'a3', 'a4', 'a5', 'a6', 'a7', 's0', 's1', 's2',
+                    's3', 's4', 's5', 's6', 's7', 's8', 's9', 's10', 's11'
+            ]
+            vals = self.xlk.read_regs(regs)
+
+            print('pc : %08X    ra : %08X    sp : %08X\n'
+                  'gp : %08X    tp : %08X    fp : %08X\n'
+                  't0 : %08X    t1 : %08X    t2 : %08X\n'
+                  't3 : %08X    t4 : %08X    t5 : %08X    t6 : %08X\n'
+                  'a0 : %08X    a1 : %08X    a2 : %08X    a3 : %08X\n'
+                  'a4 : %08X    a5 : %08X    a6 : %08X    a7 : %08X\n'
+                  's0 : %08X    s1 : %08X    s2 : %08X    s3 : %08X\n'
+                  's4 : %08X    s5 : %08X    s6 : %08X    s7 : %08X\n'
+                  's8 : %08X    s9 : %08X    s10: %08X    s11: %08X\n'
+                %(vals['pc'],   vals['ra'],  vals['sp'],
+                  vals['gp'],   vals['tp'],  vals['fp'],
+                  vals['t0'],   vals['t1'],  vals['t2'],
+                  vals['t3'],   vals['t4'],  vals['t5'],  vals['t6'],
+                  vals['a0'],   vals['a1'],  vals['a2'],  vals['a3'],
+                  vals['a4'],   vals['a5'],  vals['a6'],  vals['a7'],
+                  vals['s0'],   vals['s1'],  vals['s2'],  vals['s3'],
+                  vals['s4'],   vals['s5'],  vals['s6'],  vals['s7'],
+                  vals['s8'],   vals['s9'],  vals['s10'], vals['s11'],
+                 ))
     
+    @connection_required
+    def do_rreg(self, reg):
+        '''Read core register. Syntax: rreg <RegName>
+Can only exec when Core halted\n'''
+        if not self.xlk.halted():
+            print('should halt first!\n')
+            return
+
+        val = self.xlink.read_reg(reg)
+
+        print(f'\n0x{val:x}\n')
+
     @connection_required
     def do_wreg(self, reg, val):
         '''Write core register. Syntax: wreg <RegName> <value>
@@ -481,6 +520,8 @@ set elf file path, Syntax: path elf <elfpath>\n'''
                     elif subcmd == 'svd':
                         self.svdpath = path
 
+                        self.svdev = svd.SVD(self.svdpath).device
+
                     elif subcmd == 'elf':
                         self.elfpath = path
 
@@ -510,7 +551,7 @@ set elf file path, Syntax: path elf <elfpath>\n'''
 register read:        sv <peripheral>.<register>
 register write:       sv <peripheral>.<register> <hex>
 register field write: sv <peripheral>.<register>.<field> <dec>\n'''
-        obj = self.dev
+        obj = self.svdev
         for name in input.split('.'):
             match = re.match(r'(\w+)\[(\d+)\]', name)
 
@@ -582,7 +623,7 @@ register field write: sv <peripheral>.<register>.<field> <dec>\n'''
 
     def complete_sv(self, pre_args, curr_arg, document, complete_event):
         if len(pre_args) == 0 and curr_arg:
-            obj = self.dev
+            obj = self.svdev
             names = curr_arg.split('.')
             for name in names[:-1]:
                 match = re.match(r'(\w+)\[(\d+)\]', name)
@@ -625,6 +666,10 @@ register field write: sv <peripheral>.<register>.<field> <dec>\n'''
         for key, val in self.env.items():
             print(f'{key:<10s}{val}')
         print()
+
+    def do_exit(self):
+        self.xlk.close()
+        sys.exit()
 
     def get_MDK_Packs_path(self):
         try:
