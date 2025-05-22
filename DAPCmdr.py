@@ -458,7 +458,7 @@ Can only exec when Core halted\n'''
 
         val = self.xlk.read_reg(reg)
 
-        print(f'\n0x{val:x}\n')
+        print(f'\n0x{val:08X}\n')
 
     @connection_required
     def do_wreg(self, reg, val):
