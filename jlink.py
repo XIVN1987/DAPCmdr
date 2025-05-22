@@ -131,10 +131,10 @@ class JLink(object):
         return self.read_mem_U32(addr, 1)[0]
 
     def read_reg(self, reg):
-        return self.jlk.JLINKARM_ReadReg(reg)
+        return self.jlk.JLINKARM_ReadReg(self.core_regs[reg.upper()])
     
     def read_regs(self, rlist):
-        regIndex = [self.core_regs[r] for r in rlist]
+        regIndex = [self.core_regs[reg.upper()] for reg in rlist]
         
         regIndex = (ctypes.c_uint32 * len(regIndex))(*regIndex)
         regValue = (ctypes.c_uint32 * len(regIndex))()
@@ -185,9 +185,10 @@ class JLink(object):
             return self.CORE_TYPE_NAME[core_type]
 
         elif self.mode.startswith('rv'):
-            self.halt()
-            isa = self.read_reg(self.core_regs['MISA'])
-            self.go()
+            halted = self.halted()
+            if not halted: self.halt()
+            isa = self.read_reg('MISA')
+            if not halted: self.go()
 
             if ((isa >> 30) & 3) == 1:
                 name = 'RV32'

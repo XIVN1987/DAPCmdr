@@ -449,14 +449,14 @@ Can only exec when Core halted\n'''
                  ))
     
     @connection_required
-    def do_rreg(self, reg):
-        '''Read core register. Syntax: rreg <RegName>
+    def do_reg(self, reg):
+        '''Read core register. Syntax: reg <RegName>
 Can only exec when Core halted\n'''
         if not self.xlk.halted():
             print('should halt first!\n')
             return
 
-        val = self.xlink.read_reg(reg)
+        val = self.xlk.read_reg(reg)
 
         print(f'\n0x{val:x}\n')
 
