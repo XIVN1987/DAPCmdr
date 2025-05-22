@@ -57,11 +57,11 @@ address and value use hexadecimal, count use decimal\n'''
         if not self.conf.has_section('link'):
             self.conf.add_section('link')
             self.conf.set('link', 'mode', 'arm')
-            self.conf.set('link', 'speed', '4000')
+            self.conf.set('link', 'speed', '4 MHz')
             self.conf.write(open('setting.ini', 'w', encoding='utf-8'))
 
         self.mode = self.conf.get('link', 'mode')
-        self.speed = int(self.conf.get('link', 'speed'))
+        self.speed = int(self.conf.get('link', 'speed').split()[0])
 
         if not self.conf.has_section('paths'):
             self.conf.add_section('paths')
@@ -98,7 +98,7 @@ address and value use hexadecimal, count use decimal\n'''
         self.onecmd('')
 
     def emptyline(self):
-        print(f'mode = {self.mode}, speed = {self.speed}KHz\n')
+        print(f'mode = {self.mode}, speed = {self.speed}MHz\n')
 
         try:
             if self.xlk == None:
@@ -136,11 +136,11 @@ address and value use hexadecimal, count use decimal\n'''
                     self.xlk = xlink.XLink(cortex_m.CortexM(None, _ap))
 
                 else:
-                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed))
+                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed * 1000))
 
             else:
                 self.xlk.close()
-                self.xlk.open(self.mode, self.device_core(), self.speed)
+                self.xlk.open(self.mode, self.device_core(), self.speed * 1000)
             
             print(f'CPU core is {self.xlk.read_core_type()}\n')
         except Exception as e:
@@ -155,17 +155,17 @@ address and value use hexadecimal, count use decimal\n'''
             self.saveSetting()
 
         else:
-            print('only can be arm, armj, rv or rvj\n')
+            print('can only be arm, armj, rv or rvj\n')
 
     def do_speed(self, speed):
-        '''Set link speed in KHz. Syntax: speed <speed>\n'''
+        '''Set link speed in MHz. Syntax: speed <speed>\n'''
         try:
             self.speed = int(speed)
 
             self.saveSetting()
 
         except Exception as e:
-            print('invalid speed value\n')
+            print('<speed> can only be integer\n')
 
     def connection_required(func):
         @functools.wraps(func)
@@ -695,7 +695,7 @@ register field write: sv <peripheral>.<register>.<field> <dec>\n'''
 
     def saveSetting(self):
         self.conf.set('link',  'mode', self.mode)
-        self.conf.set('link',  'speed', f'{self.speed}')
+        self.conf.set('link',  'speed', f'{self.speed} MHz')
         self.conf.set('paths', 'dllpath', self.dllpath)
         self.conf.set('paths', 'svdpath', repr(list(dict.fromkeys([self.svdpath] + self.svdpaths))))    # 保留顺序去重
         self.conf.set('paths', 'elfpath', repr(list(dict.fromkeys([self.elfpath] + self.elfpaths))))
