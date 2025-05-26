@@ -13,6 +13,19 @@ pip install prompt_toolkit pyusb hidapi six pyelftools
 `√` meaning file exists, `×` meaning not.
 
 ## Basic Command
+### link mode switch
+```
+mode arm/armj/rv/rvj
+```
+| |target core|link protocol|
+|:-|:-:|:-:|
+|arm|Cortex-M|SWD|
+|armj|Cortex-M|JTAG|
+|rv|RISC-V|cJTAG|
+|rvj|RISC-V|JTAG|
+
+*note: DAPLink cannot support RISC-V now.*
+
 ### memory read/write
 ```
 Read  8-bit items. Syntax: rd8 <addr> <count>
@@ -46,6 +59,9 @@ Syntax: loadbin <filepath> <addr>
 ### core register read/write
 ```
 DAPCmdr > wreg r0 12345678
+
+DAPCmdr > reg r0
+0x12345678
 
 DAPCmdr > regs
 R0 : 12345678    R1 : 0000000A    R2 : 00146BAB    R3 : 044AA200
