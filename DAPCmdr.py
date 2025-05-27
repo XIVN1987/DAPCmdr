@@ -129,6 +129,7 @@ address and value use hexadecimal, count use decimal\n'''
                     _dp = dap.DebugPort(daplink, None)
                     _dp.init()
                     _dp.power_up_debug()
+                    _dp.set_clock(self.speed * 1000000)
 
                     _ap = ap.AHB_AP(_dp, 0)
                     _ap.init()
