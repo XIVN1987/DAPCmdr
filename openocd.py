@@ -30,7 +30,7 @@ class OpenOCD:
         except:
             return ''
         
-        return s[s.index('\n')+1:s.rindex('\n')]
+        return s[s.find('\n')+1:s.rfind('\n')]
     
     def _exec(self, cmd):
         self.tnet.write(f'{cmd}\n'.encode('latin-1'))
@@ -104,9 +104,14 @@ class OpenOCD:
         self._exec(f'mww {addr:#x} {val:#x}')
 
     def write_mem(self, addr, data):
-        s = ' '.join([f'{x:#x}' for x in data])
-        
-        self._exec(f'write_memory {addr:#x} 8 {{{s}}}')
+        index = 0
+        while index < len(data):
+            s = ' '.join([f'{x:#x}' for x in data[index:index+256]])
+            
+            self._exec(f'write_memory {addr:#x} 8 {{{s}}}')
+
+            addr += 256
+            index += 256
 
     def read_mem(self, addr, count, width):
         res = self._exec(f'read_memory {addr:#x} {width} {count}')
@@ -151,9 +156,9 @@ class OpenOCD:
         self._exec('resume')
 
     def halted(self):
-        res = self._exec('wait_halt 500')
+        res = self._exec('targets')
 
-        return 'timed out' not in res
+        return 'halted' in res
 
     def close(self):
         self.tnet.close()
