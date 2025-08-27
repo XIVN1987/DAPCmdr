@@ -109,21 +109,42 @@ address and value use hexadecimal, count use decimal\n'''
                 except Exception as e:
                     daplinks = []
 
-                if daplinks and os.path.isfile(self.dllpath) or len(daplinks) > 1:
-                    values = [(0, 'J-Link')] + [(i+1, f'{lnk.product_name} ({lnk.unique_id})') for i, lnk in enumerate(daplinks)]
-                    index = radiolist_dialog(title="probe select", text="Which probe would you like ?", values=values).run()
+                try:
+                    import openocd
+                    ocdlink = openocd.OpenOCD()
+                except Exception as e:
+                    ocdlink = None
+
+                n_link = len(daplinks)
+                if ocdlink: n_link += 1
+                if os.path.isfile(self.dllpath): n_link += 1
+
+                if n_link > 1:
+                    values = [(i, f'{lnk.product_name} ({lnk.unique_id})') for i, lnk in enumerate(daplinks)]
+                    if ocdlink: values += [('openocd', 'OpenOCD')]
+                    if os.path.isfile(self.dllpath): values += [('jlink', 'J-Link')]
+                    select = radiolist_dialog(title="probe select", text="Which probe would you like ?", values=values).run()
+
+                elif ocdlink:
+                    select = 'openocd'
 
                 elif os.path.isfile(self.dllpath):
-                    index = 0
+                    select = 'jlink'
 
                 elif daplinks:
-                    index = 1
+                    select = 0
 
                 else:
                     raise Exception('No link found')
 
-                if index:
-                    daplink = daplinks[index-1]
+                if select == 'openocd':
+                    self.xlk = xlink.XLink(ocdlink)
+
+                elif select == 'jlink':
+                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed * 1000))
+
+                else:
+                    daplink = daplinks[select]
                     daplink.open()
 
                     _dp = dap.DebugPort(daplink, None)
@@ -135,9 +156,6 @@ address and value use hexadecimal, count use decimal\n'''
                     _ap.init()
 
                     self.xlk = xlink.XLink(cortex_m.CortexM(None, _ap))
-
-                else:
-                    self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed * 1000))
 
             else:
                 self.xlk.close()
