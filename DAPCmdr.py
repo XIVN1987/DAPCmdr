@@ -496,11 +496,18 @@ Can only exec when Core halted\n'''
         print()
 
     @connection_required
-    def do_reset(self):
-        '''reset core\n'''
-        self.xlk.reset()
+    def do_reset(self, halt=False):
+        '''reset     : reset and run
+reset halt: reset and halt on first instruction\n'''
+        if halt == 'halt':
+            self.xlk.reset_and_halt()
 
-        print()
+            self.do_regs()
+
+        else:
+            self.xlk.reset()
+
+            print()
 
     @connection_required
     def do_halt(self):
@@ -510,9 +517,11 @@ Can only exec when Core halted\n'''
         self.do_regs()
 
     @connection_required
-    def do_step(self):
-        '''execute a single instruction\n'''
-        self.xlk.step()
+    def do_step(self, n=1):
+        '''step  : execute 1 instruction
+step 3: execute 3 instructions\n'''
+        for i in range(int(n)):
+            self.xlk.step()
 
         self.do_regs()
 
