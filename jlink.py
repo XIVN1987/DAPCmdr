@@ -1,6 +1,4 @@
-import os
 import ctypes
-import operator
 
 
 class JLink(object):
@@ -104,10 +102,18 @@ class JLink(object):
     def write_U32(self, addr, val):
         self.jlk.JLINKARM_WriteU32(addr, val)
 
-    def write_mem(self, addr, data):
+    def write_U64(self, addr, val):
+        self.jlk.JLINKARM_WriteU64(addr, val)
+
+    def write_mem_U8(self, addr, data):
         buffer = (ctypes.c_uint8 * len(data))(*data)
 
         self.jlk.JLINKARM_WriteMem(addr, len(data), buffer)
+
+    def write_mem_U32(self, addr, data):
+        buffer = (ctypes.c_uint32 * len(data))(*data)
+
+        self.write_mem_U8(addr, bytes(buffer))  # MCU and PC both little-endian
 
     def read_mem_U8(self, addr, count):
         buffer = (ctypes.c_uint8 * count)()
@@ -127,8 +133,17 @@ class JLink(object):
 
         return buffer[:]
 
+    def read_mem_U64(self, addr, count):
+        buffer = (ctypes.c_uint64 * count)()
+        self.jlk.JLINKARM_ReadMemU64(addr, count, buffer, 0)
+
+        return buffer[:]
+
     def read_U32(self, addr):
         return self.read_mem_U32(addr, 1)[0]
+
+    def read_U64(self, addr):
+        return self.read_mem_U64(addr, 1)[0]
 
     def read_reg(self, reg):
         val = self.jlk.JLINKARM_ReadReg(self.core_regs[reg.upper()])
@@ -155,6 +170,9 @@ class JLink(object):
 
     def halt(self):
         self.jlk.JLINKARM_Halt()
+
+    def step(self):
+        self.jlk.JLINKARM_Step()
 
     def go(self):
         self.jlk.JLINKARM_Go()

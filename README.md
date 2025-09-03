@@ -75,6 +75,7 @@ CONTROL: 00 (when Thread mode: privileged, use MSP)
 ### device control
 * reset
 * halt
+* step
 * go
 
 ## HardFault Diagnosis

@@ -144,6 +144,8 @@ address and value use hexadecimal, count use decimal\n'''
                     self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed * 1000))
 
                 else:
+                    self.mode = 'arm'   # only support ARM
+
                     daplink = daplinks[select]
                     daplink.open()
 
@@ -371,7 +373,7 @@ Syntax: loadbin <filepath> <addr>\n'''
         with open(file, 'rb') as f:
             data = f.read()
 
-            self.xlk.write_mem(addr, data)
+            self.xlk.write_mem_U8(addr, data)
 
         print()
 
@@ -504,6 +506,13 @@ Can only exec when Core halted\n'''
     def do_halt(self):
         '''halt core\n'''
         self.xlk.halt()
+
+        self.do_regs()
+
+    @connection_required
+    def do_step(self):
+        '''execute a single instruction\n'''
+        self.xlk.step()
 
         self.do_regs()
 

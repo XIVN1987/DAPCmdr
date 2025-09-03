@@ -8,13 +8,13 @@ import telnetlib
 
 
 class OpenOCD:
-    def __init__(self, host="localhost", port=4444):
+    def __init__(self, host="localhost", port=4444, mode='rv', core='risc-v', speed=4000):
         self.host = host
         self.port = port
 
         self.tnet = telnetlib.Telnet()
         
-        self.open()
+        self.open(mode, core, speed)
 
     def open(self, mode='rv', core='risc-v', speed=4000):
         self.mode = mode.lower()
@@ -103,7 +103,10 @@ class OpenOCD:
     def write_U32(self, addr, val):
         self._exec(f'mww {addr:#x} {val:#x}')
 
-    def write_mem(self, addr, data):
+    def write_U64(self, addr, val):
+        self._exec(f'mwd {addr:#x} {val:#x}')
+
+    def write_mem_U8(self, addr, data):
         index = 0
         while index < len(data):
             s = ' '.join([f'{x:#x}' for x in data[index:index+256]])
@@ -113,22 +116,49 @@ class OpenOCD:
             addr += 256
             index += 256
 
-    def read_mem(self, addr, count, width):
-        res = self._exec(f'read_memory {addr:#x} {width} {count}')
+    def write_mem_U32(self, addr, data):
+        index = 0
+        while index < len(data):
+            s = ' '.join([f'{x:#x}' for x in data[index:index+64]])
+            
+            self._exec(f'write_memory {addr:#x} 32 {{{s}}}')
 
-        return [int(x, 16) for x in res.split()]
+            addr += 64 * 4
+            index += 64
+
+    def read_mem_(self, addr, count, width):
+        data = []
+        index = 0
+        while index < count:    # read too much one-time will cause timeout
+            res = self._exec(f'read_memory {addr:#x} {width} 256')
+            if res:
+                data.extend([int(x, 16) for x in res.split()])
+
+                addr += 256 * (width // 8)
+                index += 256
+
+            else:
+                break
+
+        return data
 
     def read_mem_U8(self, addr, count):
-        return self.read_mem(addr, count, 8)
+        return self.read_mem_(addr, count, 8)
 
     def read_mem_U16(self, addr, count):
-        return self.read_mem(addr, count, 16)
+        return self.read_mem_(addr, count, 16)
     
     def read_mem_U32(self, addr, count):
-        return self.read_mem(addr, count, 32)
+        return self.read_mem_(addr, count, 32)
+
+    def read_mem_U64(self, addr, count):
+        return self.read_mem_(addr, count, 64)
 
     def read_U32(self, addr):
         return self.read_mem_U32(addr, 1)[0]
+
+    def read_U64(self, addr):
+        return self.read_mem_U64(addr, 1)[0]
 
     def read_reg(self, reg):
         res = self._exec(f'reg {self.core_regs[reg.lower()]}')
@@ -146,17 +176,26 @@ class OpenOCD:
         self._exec(f'reg {self.core_regs[reg.lower()]} {val:#x}')
 
     # halt: immediately halt after reset
-    def reset(self, halt = False):
+    def reset(self, halt=False):
         self._exec(f'reset {"halt" if halt else "run"}')
 
     def halt(self):
         self._exec('halt 500')
 
-    def go(self):
-        self._exec('resume')
+    def step(self, addr=None):
+        if addr is None:
+            self._exec('step')  # single-step the target at its current code position
+        else:
+            self._exec(f'step {addr:#x}')   # single-step the target from specified address
+
+    def resume(self, addr=None):
+        if addr is None:
+            self._exec('resume')    # resume the target at its current code position
+        else:
+            self._exec(f'resume {addr:#x}') # resume the target to specified address
 
     def halted(self):
-        res = self._exec('targets')
+        res = self._exec('poll')
 
         return 'halted' in res
 
