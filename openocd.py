@@ -58,12 +58,12 @@ class OpenOCD:
     def write_mem_(self, addr, data, width):
         index = 0
         while index < len(data):
-            s = ' '.join([f'{x:#x}' for x in data[index:index+256]])
+            s = ' '.join([f'{x:#x}' for x in data[index:index+128]])
             
             self._exec(f'write_memory {addr:#x} {width} {{{s}}}')
 
-            addr += 256 * (width // 8)
-            index += 256
+            addr += 128 * (width // 8)
+            index += 128
 
     def write_mem_U8(self, addr, data):
         self.write_mem_(addr, data, 8)
@@ -75,12 +75,12 @@ class OpenOCD:
         data = []
         index = 0
         while index < count:    # read too much one-time will cause timeout
-            res = self._exec(f'read_memory {addr:#x} {width} {min(256, count)}')
+            res = self._exec(f'read_memory {addr:#x} {width} {min(128, count)}')
             if res:
                 data.extend([int(x, 16) for x in res.split()])
 
-                addr += 256 * (width // 8)
-                index += 256
+                addr += 128 * (width // 8)
+                index += 128
 
             else:
                 break
