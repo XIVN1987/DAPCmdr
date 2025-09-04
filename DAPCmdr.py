@@ -137,11 +137,13 @@ address and value use hexadecimal, count use decimal\n'''
                 else:
                     raise Exception('No link found')
 
-                if select == 'openocd':
-                    self.xlk = xlink.XLink(ocdlink)
-
-                elif select == 'jlink':
+                if select == 'jlink':
                     self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed * 1000))
+
+                elif select == 'openocd':
+                    self.mode = 'rv'    # only support RISC-V
+
+                    self.xlk = xlink.XLink(ocdlink)
 
                 else:
                     self.mode = 'arm'   # only support ARM
