@@ -121,7 +121,7 @@ address and value use hexadecimal, count use decimal\n'''
 
                 if n_link > 1:
                     values = [(i, f'{lnk.product_name} ({lnk.unique_id})') for i, lnk in enumerate(daplinks)]
-                    if ocdlink: values += [('openocd', 'OpenOCD')]
+                    if ocdlink: values += [('openocd', 'OpenOCD Tcl RPC (6666)')]
                     if os.path.isfile(self.dllpath): values += [('jlink', 'J-Link')]
                     select = radiolist_dialog(title="probe select", text="Which probe would you like ?", values=values).run()
 
