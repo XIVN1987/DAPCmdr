@@ -77,10 +77,7 @@ class XLink(object):
 
     @property
     def mode(self):
-        if isinstance(self.xlk, (jlink.JLink, openocd.OpenOCD)):
-            return self.xlk.mode
-        else:
-            return 'arm'
+        return getattr(self.xlk, 'mode', 'arm')
     
     def write_U8(self, addr, val):
         if isinstance(self.xlk, (jlink.JLink, openocd.OpenOCD)):

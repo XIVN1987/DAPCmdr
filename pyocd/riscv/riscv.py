@@ -2,8 +2,12 @@
 
 import time
 
+from pyocd.probe.pydapaccess.cmsis_dap_core import Pin
+
 from . import csr
-from .dm import DM, AAMSIZE_16BITS, AAMSIZE_32BITS
+from .dm import (DM, AAMSIZE_8BITS, AAMSIZE_16BITS, AAMSIZE_32BITS,
+                 DM_CONTROL_DMACTIVE, DM_CONTROL_HALTREQ,
+                 DM_CONTROL_SETRESETHALTREQ, DM_STATUS_HASRESETHALTREQ)
 from .dmi import DMI
 from .dtm import DTM
 
@@ -16,9 +20,56 @@ REG_F31 = 64
 REG_CSR_BASE = 65
 REG_PRIV = 4161
 
+# ABI names of x0-x31, used to build the register name table.
+GPR_ABI_NAMES = (
+    "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
+    "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
+    "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
+    "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6",
+)
+
+
+def register_names():
+    """Return the ``{name: register number}`` table of the debug register space."""
+    names = {}
+    for index, alias in enumerate(GPR_ABI_NAMES):
+        names["x%d" % index] = REG_X0 + index
+        names[alias] = REG_X0 + index
+    names["fp"] = REG_X0 + 8
+    names["pc"] = REG_PC
+    for index in range(32):
+        names["f%d" % index] = REG_F0 + index
+    for number, name in csr.CSR_NAMES.items():
+        names[name] = REG_CSR_BASE + number
+    names["priv"] = REG_PRIV
+    return names
+
 
 class RISCVError(Exception):
     """Raised for target level failures."""
+
+
+class _LinkShim(object):
+    """Mimics pyOCD's ``ap.dp.link`` so xlink.py can open/close the link."""
+
+    def __init__(self, target):
+        self._target = target
+
+    def open(self):
+        self._target.open()
+
+    def close(self):
+        self._target.close()
+
+
+class _DpShim(object):
+    def __init__(self, target):
+        self.link = _LinkShim(target)
+
+
+class _ApShim(object):
+    def __init__(self, target):
+        self.dp = _DpShim(target)
 
 
 class RISCV(object):
@@ -31,6 +82,9 @@ class RISCV(object):
         self.idcode = 0
         self.dtmcs = 0
         self.opened = False
+        self.mode = 'rv'
+        self.core_regs = register_names()
+        self.ap = _ApShim(self)
 
     # ------------------------------------------------------------------
     # Connection
@@ -205,8 +259,7 @@ class RISCV(object):
             return 2, AAMSIZE_16BITS
         return 1, AAMSIZE_8BITS
 
-    def read_memory(self, addr, length):
-        """Read ``length`` bytes from target memory."""
+    def _read_bytes(self, addr, length):
         if length == 0:
             return b""
         width, aamsize = self._memory_access_width(addr, length)
@@ -216,19 +269,134 @@ class RISCV(object):
             data += (value & ((1 << (width * 8)) - 1)).to_bytes(width, "little")
         return bytes(data)
 
-    def write_memory(self, addr, data):
-        """Write bytes to target memory."""
+    def _write_bytes(self, addr, data):
         data = bytes(data)
         if not data:
             return
         width, aamsize = self._memory_access_width(addr, len(data))
         for offset in range(0, len(data), width):
-            chunk = data[offset:offset + width]
-            value = int.from_bytes(chunk, "little")
+            value = int.from_bytes(data[offset:offset + width], "little")
             self.dm.write_memory(addr + offset, value, aamsize)
 
-    def read_u32(self, addr):
-        return self.dm.read_memory(addr, AAMSIZE_32BITS)
+    def _read_transfer(self, addr, transfer_size):
+        if transfer_size == 8:
+            return self.dm.read_memory(addr, AAMSIZE_8BITS) & 0xFF
+        if transfer_size == 16:
+            return self.dm.read_memory(addr, AAMSIZE_16BITS) & 0xFFFF
+        if transfer_size == 32:
+            return self.dm.read_memory(addr, AAMSIZE_32BITS)
+        raise RISCVError("unsupported transfer size %d" % transfer_size)
 
-    def write_u32(self, addr, value):
-        self.dm.write_memory(addr, value, AAMSIZE_32BITS)
+    def _write_transfer(self, addr, value, transfer_size):
+        if transfer_size == 8:
+            self.dm.write_memory(addr, value & 0xFF, AAMSIZE_8BITS)
+        elif transfer_size == 16:
+            self.dm.write_memory(addr, value & 0xFFFF, AAMSIZE_16BITS)
+        elif transfer_size == 32:
+            self.dm.write_memory(addr, value & 0xFFFFFFFF, AAMSIZE_32BITS)
+        else:
+            raise RISCVError("unsupported transfer size %d" % transfer_size)
+
+    def read_memory(self, addr, transfer_size=32, now=True):
+        """Read one memory location; ``now=False`` returns a callable."""
+        if now:
+            return self._read_transfer(addr, transfer_size)
+        return lambda: self._read_transfer(addr, transfer_size)
+
+    def write_memory(self, addr, value, transfer_size=32):
+        """Write one memory location."""
+        self._write_transfer(addr, value, transfer_size)
+
+    def read8(self, addr, now=True):
+        return self.read_memory(addr, 8, now)
+
+    def read16(self, addr, now=True):
+        return self.read_memory(addr, 16, now)
+
+    def read32(self, addr, now=True):
+        return self.read_memory(addr, 32, now)
+
+    def write8(self, addr, value):
+        self.write_memory(addr, value, 8)
+
+    def write16(self, addr, value):
+        self.write_memory(addr, value, 16)
+
+    def write32(self, addr, value):
+        self.write_memory(addr, value, 32)
+
+    def read_memory_block8(self, addr, size):
+        """Read a block of bytes; returns an array of byte values."""
+        return list(self._read_bytes(addr, size))
+
+    def write_memory_block8(self, addr, data):
+        self._write_bytes(addr, data)
+
+    def read_memory_block32(self, addr, size):
+        """Read ``size`` aligned words; returns an array of word values."""
+        return [self.dm.read_memory(addr + index * 4, AAMSIZE_32BITS)
+                for index in range(size)]
+
+    def write_memory_block32(self, addr, data):
+        for index, value in enumerate(data):
+            self.dm.write_memory(addr + index * 4, value & 0xFFFFFFFF, AAMSIZE_32BITS)
+
+    # ------------------------------------------------------------------
+    # Core registers
+    # ------------------------------------------------------------------
+    def register_number(self, name):
+        """Return the register number of ``name`` (e.g. ``ra``, ``misa``)."""
+        if isinstance(name, int):
+            return name
+        try:
+            return self.core_regs[name.lower()]
+        except KeyError:
+            raise RISCVError("unknown register name '%s'" % name)
+
+    def read_core_register_raw(self, reg):
+        return self.read_register(self.register_number(reg))
+
+    def read_core_registers_raw(self, reg_list):
+        return [self.read_core_register_raw(reg) for reg in reg_list]
+
+    def write_core_register_raw(self, reg, data):
+        self.write_register(self.register_number(reg), data)
+
+    # ------------------------------------------------------------------
+    # Reset
+    # ------------------------------------------------------------------
+    @property
+    def _link_protocol(self):
+        """The CMSIS-DAP protocol behind the DTM, when the link provides one."""
+        return getattr(self.dtm, "_protocol", None)
+
+    def _set_reset(self, asserted):
+        protocol = self._link_protocol
+        if protocol is None or not hasattr(protocol, "set_swj_pins"):
+            raise RISCVError("the link cannot drive nRESET")
+        protocol.set_swj_pins(0 if asserted else Pin.nRESET, Pin.nRESET)
+
+    def reset(self):
+        """Pulse nRESET and let the hart run."""
+        self._set_reset(True)
+        try:
+            time.sleep(0.05)
+        finally:
+            self._set_reset(False)
+        self.dtm.reset_tap()
+        self.dm.activate()      # the debug module may be reset with the hart
+
+    def reset_and_halt(self):
+        """Reset the target and halt the hart as reset is released."""
+        self._set_reset(True)
+        try:
+            time.sleep(0.02)
+            self.dtm.reset_tap()
+            self.dm.activate()
+            control = DM_CONTROL_DMACTIVE | DM_CONTROL_HALTREQ
+            if self.dm.read_dmstatus() & DM_STATUS_HASRESETHALTREQ:
+                control |= DM_CONTROL_SETRESETHALTREQ
+            self.dm.write_dmcontrol(control)
+        finally:
+            self._set_reset(False)
+        self.dm.wait_halted()

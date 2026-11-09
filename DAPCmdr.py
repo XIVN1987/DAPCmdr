@@ -145,9 +145,7 @@ address and value use hexadecimal, count use decimal\n'''
 
                     self.xlk = xlink.XLink(ocdlink)
 
-                else:
-                    self.mode = 'arm'   # only support ARM
-
+                elif self.mode.startswith('arm'):   # DAPLink + ARM
                     daplink = daplinks[select]
                     daplink.open()
 
@@ -160,6 +158,34 @@ address and value use hexadecimal, count use decimal\n'''
                     _ap.init()
 
                     self.xlk = xlink.XLink(cortex_m.CortexM(None, _ap))
+
+                elif self.mode.startswith('rv'):    # DAPLink + RISC-V
+                    from pyocd.probe.pydapaccess.cmsis_dap_core import CMSISDAPProtocol, DAP_JTAG_PORT
+                    from pyocd.riscv.dtm import DTM, discover_taps
+                    from pyocd.riscv.riscv import RISCV
+
+                    interface = daplinks[select]._link._interface
+                    interface.open()
+
+                    protocol = CMSISDAPProtocol(interface)
+                    protocol.connect(DAP_JTAG_PORT)
+                    protocol.set_swj_clock(self.speed * 1000000)
+
+                    taps = discover_taps(protocol)
+                    for index, irlen in enumerate(taps):
+                        dtm = DTM(protocol, irlen=irlen)
+                        dtm.configure_tap(sum(taps[:index]), sum(taps[index + 1:]), index, len(taps) - index - 1)
+                        riscv = RISCV(dtm=dtm)
+                        try:
+                            riscv.open()
+                        except Exception as error:
+                            continue
+                        
+                        self.xlk = xlink.XLink(riscv)
+                        break
+
+                else:
+                    raise Exception('link mode error')
 
             else:
                 self.xlk.close()

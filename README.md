@@ -24,8 +24,6 @@ mode arm/armj/rv/rvj
 |rv|RISC-V|cJTAG|
 |rvj|RISC-V|JTAG|
 
-*note: DAPLink cannot support RISC-V now.*
-
 ### memory read/write
 ```
 Read  8-bit items. Syntax: rd8 <addr> <count>
