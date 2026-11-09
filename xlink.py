@@ -20,8 +20,10 @@ class XLink(object):
 
             self.reg_add_alias()
             
-        else:
+        elif self.mode.startswith('arm'):   # DAPLink + ARM
             self.xlk.ap.dp.link.open()
+        else:                               # DAPLink + RISC-V
+            self.xlk.open()
 
     def reg_add_alias(self):
         def add_alias(regs, name1, name2, name3=None):
@@ -178,8 +180,11 @@ class XLink(object):
     def close(self):
         if isinstance(self.xlk, (jlink.JLink, openocd.OpenOCD)):
             self.xlk.close()
-        else:
+        elif self.mode.startswith('arm'):   # DAPLink + ARM
             self.xlk.ap.dp.link.close()
+        else:                               # DAPLink + RISC-V
+            self.xlk.close()
+
 
     CORE_TYPE_NAME = {
         0xC20: "Cortex-M0",

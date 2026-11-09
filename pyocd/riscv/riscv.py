@@ -49,29 +49,6 @@ class RISCVError(Exception):
     """Raised for target level failures."""
 
 
-class _LinkShim(object):
-    """Mimics pyOCD's ``ap.dp.link`` so xlink.py can open/close the link."""
-
-    def __init__(self, target):
-        self._target = target
-
-    def open(self):
-        self._target.open()
-
-    def close(self):
-        self._target.close()
-
-
-class _DpShim(object):
-    def __init__(self, target):
-        self.link = _LinkShim(target)
-
-
-class _ApShim(object):
-    def __init__(self, target):
-        self.dp = _DpShim(target)
-
-
 class RISCV(object):
     """RISC-V debug target built from DTM, DMI and DM layers."""
 
@@ -84,7 +61,6 @@ class RISCV(object):
         self.opened = False
         self.mode = 'rv'
         self.core_regs = register_names()
-        self.ap = _ApShim(self)
 
     # ------------------------------------------------------------------
     # Connection
