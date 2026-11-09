@@ -20,7 +20,7 @@ class JLink(object):
         
         if self.mode == 'arm':
             tif = TIF.SWD
-        elif self.mode == 'rv':
+        elif self.mode == 'rvcj':
             tif = TIF.CJTAG
         elif self.mode in ('armj', 'rvj'):
             tif = TIF.JTAG

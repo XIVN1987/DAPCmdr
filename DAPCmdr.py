@@ -109,44 +109,27 @@ address and value use hexadecimal, count use decimal\n'''
                 except Exception as e:
                     daplinks = []
 
-                try:
-                    import openocd
-                    ocdlink = openocd.OpenOCD()
-                except Exception as e:
-                    ocdlink = None
+                probes = [(i, f'{lnk.product_name} ({lnk.unique_id})') for i, lnk in enumerate(daplinks)]
+                probes.append(('jlink', 'J-Link'))
+                probes.append(('openocd', 'OpenOCD Tcl RPC (6666)'))
+                probe = radiolist_dialog(title="probe select", text="Which probe would you like ?", values=probes).run()
 
-                n_link = len(daplinks)
-                if ocdlink: n_link += 1
-                if os.path.isfile(self.dllpath): n_link += 1
+                modes = [('arm', 'ARM SWD'), ('armj', 'ARM JTAG'), ('rvj', 'RISC-V JTAG'), ('rvcj', 'RISC-V cJTAG')]
+                mode = radiolist_dialog(title="link mode select", text="Which mode would you like ?", values=modes, default=self.mode).run()
+                if mode:
+                    self.mode = mode
 
-                if n_link > 1:
-                    values = [(i, f'{lnk.product_name} ({lnk.unique_id})') for i, lnk in enumerate(daplinks)]
-                    if ocdlink: values += [('openocd', 'OpenOCD Tcl RPC (6666)')]
-                    if os.path.isfile(self.dllpath): values += [('jlink', 'J-Link')]
-                    select = radiolist_dialog(title="probe select", text="Which probe would you like ?", values=values).run()
+                    self.saveSetting()
 
-                elif ocdlink:
-                    select = 'openocd'
-
-                elif os.path.isfile(self.dllpath):
-                    select = 'jlink'
-
-                elif daplinks:
-                    select = 0
-
-                else:
-                    raise Exception('No link found')
-
-                if select == 'jlink':
+                if probe == 'jlink':
                     self.xlk = xlink.XLink(jlink.JLink(self.dllpath, self.mode, self.device_core(), self.speed * 1000))
 
-                elif select == 'openocd':
-                    self.mode = 'rv'    # only support RISC-V
-
-                    self.xlk = xlink.XLink(ocdlink)
+                elif probe == 'openocd':
+                    import openocd
+                    self.xlk = xlink.XLink(openocd.OpenOCD(mode=self.mode, core=self.device_core()))
 
                 elif self.mode.startswith('arm'):   # DAPLink + ARM
-                    daplink = daplinks[select]
+                    daplink = daplinks[probe]
                     daplink.open()
 
                     _dp = dap.DebugPort(daplink, None)
@@ -164,7 +147,7 @@ address and value use hexadecimal, count use decimal\n'''
                     from pyocd.riscv.dtm import DTM, discover_taps
                     from pyocd.riscv.riscv import RISCV
 
-                    interface = daplinks[select]._link._interface
+                    interface = daplinks[probe]._link._interface
                     interface.open()
 
                     protocol = CMSISDAPProtocol(interface)
@@ -185,7 +168,7 @@ address and value use hexadecimal, count use decimal\n'''
                         break
 
                 else:
-                    raise Exception('link mode error')
+                    raise Exception('probe or mode select error')
 
             else:
                 self.xlk.close()
@@ -197,14 +180,14 @@ address and value use hexadecimal, count use decimal\n'''
             self.xlk = None
 
     def do_mode(self, mode):
-        '''Set link mode. Syntax: mode arm/armj/rv/rvj\n'''
-        if mode in ('arm', 'armj', 'rv', 'rvj'):
+        '''Set link mode. Syntax: mode arm/armj/rvj/rvcj\n'''
+        if mode in ('arm', 'armj', 'rvj', 'rvcj'):
             self.mode = mode
 
             self.saveSetting()
 
         else:
-            print('can only be arm, armj, rv or rvj\n')
+            print('can only be arm, armj, rvj or rvcj\n')
 
     def do_speed(self, speed):
         '''Set link speed in MHz. Syntax: speed <speed>\n'''

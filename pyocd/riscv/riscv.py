@@ -59,7 +59,7 @@ class RISCV(object):
         self.idcode = 0
         self.dtmcs = 0
         self.opened = False
-        self.mode = 'rv'
+        self.mode = 'rvj'
         self.core_regs = register_names()
 
     # ------------------------------------------------------------------

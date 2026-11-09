@@ -7,7 +7,7 @@ import socket
 
 
 class OpenOCD:
-    def __init__(self, host="localhost", port=6666, mode='rv', core='risc-v', speed=4000):
+    def __init__(self, host="localhost", port=6666, mode='rvj', core='risc-v', speed=4000):
         self.host = host
         self.port = port
 
@@ -15,7 +15,7 @@ class OpenOCD:
         
         self.open(mode, core, speed)
 
-    def open(self, mode='rv', core='risc-v', speed=4000):
+    def open(self, mode='rvj', core='risc-v', speed=4000):
         self.mode = mode.lower()
 
         self.sock = socket.create_connection((self.host, self.port), timeout=2)

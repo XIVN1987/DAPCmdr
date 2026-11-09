@@ -15,14 +15,14 @@ pip install prompt_toolkit pyusb hidapi six pyelftools
 ## Basic Command
 ### link mode switch
 ```
-mode arm/armj/rv/rvj
+mode arm/armj/rvj/rvcj
 ```
 | |target core|link protocol|
 |:-|:-:|:-:|
-|arm|Cortex-M|SWD|
-|armj|Cortex-M|JTAG|
-|rv|RISC-V|cJTAG|
+|arm|ARM|SWD|
+|armj|ARM|JTAG|
 |rvj|RISC-V|JTAG|
+|rvcj|RISC-V|cJTAG|
 
 ### memory read/write
 ```
